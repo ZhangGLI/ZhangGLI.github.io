@@ -1,0 +1,494 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 5.4.0">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/all.min.css">
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"example.com","root":"/","scheme":"Gemini","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":false,"show_result":false,"style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}}};
+  </script>
+
+  <meta name="description" content="Hello驱动（不涉及硬件操作）驱动程序编写步骤：① 确定主设备号，也可以让内核分配 ② 定义自己的file_operations结构体 ③ 实现对应的drv_open&#x2F;drv_read&#x2F;drv_write等函数，填入file_operations结构体 ④ 把file_operations结构体告诉内核：register_chrdev ⑤ 谁来注册驱动程序啊？得有一个入口函数：安装驱动程序时，就">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Hello驱动">
+<meta property="og:url" content="http://example.com/2021/12/26/Hello%E9%A9%B1%E5%8A%A8/index.html">
+<meta property="og:site_name" content="枫叶苑">
+<meta property="og:description" content="Hello驱动（不涉及硬件操作）驱动程序编写步骤：① 确定主设备号，也可以让内核分配 ② 定义自己的file_operations结构体 ③ 实现对应的drv_open&#x2F;drv_read&#x2F;drv_write等函数，填入file_operations结构体 ④ 把file_operations结构体告诉内核：register_chrdev ⑤ 谁来注册驱动程序啊？得有一个入口函数：安装驱动程序时，就">
+<meta property="og:locale" content="zh_CN">
+<meta property="article:published_time" content="2021-12-26T07:47:37.000Z">
+<meta property="article:modified_time" content="2021-12-26T12:08:45.434Z">
+<meta property="article:author" content="枫叶">
+<meta name="twitter:card" content="summary">
+
+<link rel="canonical" href="http://example.com/2021/12/26/Hello%E9%A9%B1%E5%8A%A8/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>Hello驱动 | 枫叶苑</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <h1 class="site-title">枫叶苑</h1>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+    </div>
+  </div>
+</div>
+
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-about">
+
+    <a href="/about/" rel="section"><i class="fa fa-user fa-fw"></i>关于</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a>
+
+  </li>
+        <li class="menu-item menu-item-schedule">
+
+    <a href="/schedule/" rel="section"><i class="fa fa-calendar fa-fw"></i>日程表</a>
+
+  </li>
+        <li class="menu-item menu-item-sitemap">
+
+    <a href="/sitemap.xml" rel="section"><i class="fa fa-sitemap fa-fw"></i>站点地图</a>
+
+  </li>
+        <li class="menu-item menu-item-commonweal">
+
+    <a href="/404/" rel="section"><i class="fa fa-heartbeat fa-fw"></i>公益 404</a>
+
+  </li>
+  </ul>
+</nav>
+
+
+
+
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content post posts-expand">
+            
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://example.com/2021/12/26/Hello%E9%A9%B1%E5%8A%A8/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="枫叶">
+      <meta itemprop="description" content="选择有时候比努力更重要">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="枫叶苑">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          Hello驱动
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+              
+
+              <time title="创建时间：2021-12-26 15:47:37 / 修改时间：20:08:45" itemprop="dateCreated datePublished" datetime="2021-12-26T15:47:37+08:00">2021-12-26</time>
+            </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/Linux%E9%A9%B1%E5%8A%A8%E5%9F%BA%E7%A1%80/" itemprop="url" rel="index"><span itemprop="name">Linux驱动基础</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <h1 id="Hello驱动（不涉及硬件操作）"><a href="#Hello驱动（不涉及硬件操作）" class="headerlink" title="Hello驱动（不涉及硬件操作）"></a>Hello驱动（不涉及硬件操作）</h1><h2 id="驱动程序编写步骤："><a href="#驱动程序编写步骤：" class="headerlink" title="驱动程序编写步骤："></a><strong>驱动程序编写步骤：</strong></h2><p>① 确定主设备号，也可以让内核分配</p>
+<p>② 定义自己的file_operations结构体</p>
+<p>③ 实现对应的drv_open/drv_read/drv_write等函数，填入file_operations结构体</p>
+<p>④ 把file_operations结构体告诉内核：register_chrdev</p>
+<p>⑤ 谁来注册驱动程序啊？得有一个入口函数：安装驱动程序时，就会去调用这个入口函数</p>
+<p>⑥ 有入口函数就应该有出口函数：卸载驱动程序时，出口函数调用unregister_chrdev</p>
+<p>⑦ 其他完善：提供设备信息，自动创建设备节点：class_create, device_create</p>
+<p><strong>驱动程序：</strong></p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br><span class="line">72</span><br><span class="line">73</span><br><span class="line">74</span><br><span class="line">75</span><br><span class="line">76</span><br><span class="line">77</span><br><span class="line">78</span><br><span class="line">79</span><br><span class="line">80</span><br><span class="line">81</span><br><span class="line">82</span><br><span class="line">83</span><br><span class="line">84</span><br><span class="line">85</span><br><span class="line">86</span><br><span class="line">87</span><br><span class="line">88</span><br><span class="line">89</span><br><span class="line">90</span><br><span class="line">91</span><br><span class="line">92</span><br><span class="line">93</span><br><span class="line">94</span><br><span class="line">95</span><br><span class="line">96</span><br><span class="line">97</span><br><span class="line">98</span><br><span class="line">99</span><br><span class="line">100</span><br><span class="line">101</span><br><span class="line">102</span><br><span class="line">103</span><br><span class="line">104</span><br><span class="line">105</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">#<span class="meta-keyword">include</span> <span class="meta-string">&lt;linux/module.h&gt;</span></span></span><br><span class="line"></span><br><span class="line"><span class="meta">#<span class="meta-keyword">include</span> <span class="meta-string">&lt;linux/fs.h&gt;</span></span></span><br><span class="line"><span class="meta">#<span class="meta-keyword">include</span> <span class="meta-string">&lt;linux/errno.h&gt;</span></span></span><br><span class="line"><span class="meta">#<span class="meta-keyword">include</span> <span class="meta-string">&lt;linux/miscdevice.h&gt;</span></span></span><br><span class="line"><span class="meta">#<span class="meta-keyword">include</span> <span class="meta-string">&lt;linux/kernel.h&gt;</span></span></span><br><span class="line"><span class="meta">#<span class="meta-keyword">include</span> <span class="meta-string">&lt;linux/major.h&gt;</span></span></span><br><span class="line"><span class="meta">#<span class="meta-keyword">include</span> <span class="meta-string">&lt;linux/mutex.h&gt;</span></span></span><br><span class="line"><span class="meta">#<span class="meta-keyword">include</span> <span class="meta-string">&lt;linux/proc_fs.h&gt;</span></span></span><br><span class="line"><span class="meta">#<span class="meta-keyword">include</span> <span class="meta-string">&lt;linux/seq_file.h&gt;</span></span></span><br><span class="line"><span class="meta">#<span class="meta-keyword">include</span> <span class="meta-string">&lt;linux/stat.h&gt;</span></span></span><br><span class="line"><span class="meta">#<span class="meta-keyword">include</span> <span class="meta-string">&lt;linux/init.h&gt;</span></span></span><br><span class="line"><span class="meta">#<span class="meta-keyword">include</span> <span class="meta-string">&lt;linux/device.h&gt;</span></span></span><br><span class="line"><span class="meta">#<span class="meta-keyword">include</span> <span class="meta-string">&lt;linux/tty.h&gt;</span></span></span><br><span class="line"><span class="meta">#<span class="meta-keyword">include</span> <span class="meta-string">&lt;linux/kmod.h&gt;</span></span></span><br><span class="line"><span class="meta">#<span class="meta-keyword">include</span> <span class="meta-string">&lt;linux/gfp.h&gt;</span></span></span><br><span class="line"></span><br><span class="line"><span class="comment">/* 1. 确定主设备号                                                                 */</span></span><br><span class="line"><span class="keyword">static</span> <span class="keyword">int</span> major = <span class="number">0</span>;</span><br><span class="line"><span class="keyword">static</span> <span class="keyword">char</span> kernel_buf[<span class="number">1024</span>];</span><br><span class="line"><span class="keyword">static</span> <span class="class"><span class="keyword">struct</span> <span class="keyword">class</span> *<span class="title">hello_class</span>;</span></span><br><span class="line"></span><br><span class="line"></span><br><span class="line"><span class="meta">#<span class="meta-keyword">define</span> MIN(a, b) (a &lt; b ? a : b)</span></span><br><span class="line"></span><br><span class="line"><span class="comment">/* 3. 实现对应的open/read/write等函数，填入file_operations结构体                   */</span></span><br><span class="line"><span class="function"><span class="keyword">static</span> <span class="keyword">ssize_t</span> <span class="title">hello_drv_read</span> <span class="params">(struct file *file, <span class="keyword">char</span> __user *buf, <span class="keyword">size_t</span> size, <span class="keyword">loff_t</span> *offset)</span></span></span><br><span class="line"><span class="function"></span>&#123;</span><br><span class="line">	<span class="keyword">int</span> err;</span><br><span class="line">	printk(<span class="string">&quot;%s %s line %d\n&quot;</span>, __FILE__, __FUNCTION__, __LINE__);</span><br><span class="line">	err = copy_to_user(buf, kernel_buf, MIN(<span class="number">1024</span>, size));</span><br><span class="line">	<span class="keyword">return</span> MIN(<span class="number">1024</span>, size);</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">static</span> <span class="keyword">ssize_t</span> <span class="title">hello_drv_write</span> <span class="params">(struct file *file, <span class="keyword">const</span> <span class="keyword">char</span> __user *buf, <span class="keyword">size_t</span> size, <span class="keyword">loff_t</span> *offset)</span></span></span><br><span class="line"><span class="function"></span>&#123;</span><br><span class="line">	<span class="keyword">int</span> err;</span><br><span class="line">	printk(<span class="string">&quot;%s %s line %d\n&quot;</span>, __FILE__, __FUNCTION__, __LINE__);</span><br><span class="line">	err = copy_from_user(kernel_buf, buf, MIN(<span class="number">1024</span>, size));</span><br><span class="line">	<span class="keyword">return</span> MIN(<span class="number">1024</span>, size);</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">static</span> <span class="keyword">int</span> <span class="title">hello_drv_open</span> <span class="params">(struct inode *node, struct file *file)</span></span></span><br><span class="line"><span class="function"></span>&#123;</span><br><span class="line">	printk(<span class="string">&quot;%s %s line %d\n&quot;</span>, __FILE__, __FUNCTION__, __LINE__);</span><br><span class="line">	<span class="keyword">return</span> <span class="number">0</span>;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">static</span> <span class="keyword">int</span> <span class="title">hello_drv_close</span> <span class="params">(struct inode *node, struct file *file)</span></span></span><br><span class="line"><span class="function"></span>&#123;</span><br><span class="line">	printk(<span class="string">&quot;%s %s line %d\n&quot;</span>, __FILE__, __FUNCTION__, __LINE__);</span><br><span class="line">	<span class="keyword">return</span> <span class="number">0</span>;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="comment">/* 2. 定义自己的file_operations结构体                                              */</span></span><br><span class="line"><span class="keyword">static</span> <span class="class"><span class="keyword">struct</span> <span class="title">file_operations</span> <span class="title">hello_drv</span> =</span> &#123;</span><br><span class="line">	.owner	 = THIS_MODULE,</span><br><span class="line">	.open    = hello_drv_open,</span><br><span class="line">	.read    = hello_drv_read,</span><br><span class="line">	.write   = hello_drv_write,</span><br><span class="line">	.release = hello_drv_close,</span><br><span class="line">&#125;;</span><br><span class="line"></span><br><span class="line"><span class="comment">/* 4. 把file_operations结构体告诉内核：注册驱动程序                                */</span></span><br><span class="line"><span class="comment">/* 5. 谁来注册驱动程序啊？得有一个入口函数：安装驱动程序时，就会去调用这个入口函数 */</span></span><br><span class="line"><span class="function"><span class="keyword">static</span> <span class="keyword">int</span> __init <span class="title">hello_init</span><span class="params">(<span class="keyword">void</span>)</span></span></span><br><span class="line"><span class="function"></span>&#123;</span><br><span class="line">	<span class="keyword">int</span> err;</span><br><span class="line">	</span><br><span class="line">	printk(<span class="string">&quot;%s %s line %d\n&quot;</span>, __FILE__, __FUNCTION__, __LINE__);</span><br><span class="line">	major = register_chrdev(<span class="number">0</span>, <span class="string">&quot;hello&quot;</span>, &amp;hello_drv);  <span class="comment">/* /dev/hello */</span></span><br><span class="line"></span><br><span class="line"></span><br><span class="line">	hello_class = class_create(THIS_MODULE, <span class="string">&quot;hello_class&quot;</span>);</span><br><span class="line">	err = PTR_ERR(hello_class);</span><br><span class="line">	<span class="keyword">if</span> (IS_ERR(hello_class)) &#123;</span><br><span class="line">		printk(<span class="string">&quot;%s %s line %d\n&quot;</span>, __FILE__, __FUNCTION__, __LINE__);</span><br><span class="line">		unregister_chrdev(major, <span class="string">&quot;hello&quot;</span>);</span><br><span class="line">		<span class="keyword">return</span> <span class="number">-1</span>;</span><br><span class="line">	&#125;</span><br><span class="line">	</span><br><span class="line">	device_create(hello_class, <span class="literal">NULL</span>, MKDEV(major, <span class="number">0</span>), <span class="literal">NULL</span>, <span class="string">&quot;hello&quot;</span>); <span class="comment">/* /dev/hello */</span></span><br><span class="line">	</span><br><span class="line">	<span class="keyword">return</span> <span class="number">0</span>;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="comment">/* 6. 有入口函数就应该有出口函数：卸载驱动程序时，就会去调用这个出口函数           */</span></span><br><span class="line"><span class="function"><span class="keyword">static</span> <span class="keyword">void</span> __exit <span class="title">hello_exit</span><span class="params">(<span class="keyword">void</span>)</span></span></span><br><span class="line"><span class="function"></span>&#123;</span><br><span class="line">	printk(<span class="string">&quot;%s %s line %d\n&quot;</span>, __FILE__, __FUNCTION__, __LINE__);</span><br><span class="line">	device_destroy(hello_class, MKDEV(major, <span class="number">0</span>));</span><br><span class="line">	class_destroy(hello_class);</span><br><span class="line">	unregister_chrdev(major, <span class="string">&quot;hello&quot;</span>);</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"></span><br><span class="line"><span class="comment">/* 7. 其他完善：提供设备信息，自动创建设备节点                                     */</span></span><br><span class="line"></span><br><span class="line">module_init(hello_init);</span><br><span class="line">module_exit(hello_exit);</span><br><span class="line"></span><br><span class="line">MODULE_LICENSE(<span class="string">&quot;GPL&quot;</span>);</span><br><span class="line"></span><br><span class="line"></span><br><span class="line"></span><br></pre></td></tr></table></figure>
+
+<p>阅读一个驱动程序，从它的入口函数开始，第66行就是入口函数。它的主要工作就是第71行，向内核注册一个file_operations结构体：hello_drv，这就是字符设备驱动程序的核心。</p>
+<p>file_operations结构体hello_drv在第56行定义，里面提供了open/read/write/release成员，应用程序调用open/read/write/close时就会导致这些成员函数被调用。</p>
+<p>file_operations结构体hello_drv中的成员函数都比较简单，大多数只是打印而已。要注意的是，驱动程序和应用程序之间传递数据要使用copy_from_user/copy_to_user函数。</p>
+<p><strong>测试程序：</strong></p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br></pre></td><td class="code"><pre><span class="line"></span><br><span class="line"><span class="meta">#<span class="meta-keyword">include</span> <span class="meta-string">&lt;sys/types.h&gt;</span></span></span><br><span class="line"><span class="meta">#<span class="meta-keyword">include</span> <span class="meta-string">&lt;sys/stat.h&gt;</span></span></span><br><span class="line"><span class="meta">#<span class="meta-keyword">include</span> <span class="meta-string">&lt;fcntl.h&gt;</span></span></span><br><span class="line"><span class="meta">#<span class="meta-keyword">include</span> <span class="meta-string">&lt;unistd.h&gt;</span></span></span><br><span class="line"><span class="meta">#<span class="meta-keyword">include</span> <span class="meta-string">&lt;stdio.h&gt;</span></span></span><br><span class="line"><span class="meta">#<span class="meta-keyword">include</span> <span class="meta-string">&lt;string.h&gt;</span></span></span><br><span class="line"></span><br><span class="line"><span class="comment">/*</span></span><br><span class="line"><span class="comment"> * ./hello_drv_test -w abc</span></span><br><span class="line"><span class="comment"> * ./hello_drv_test -r</span></span><br><span class="line"><span class="comment"> */</span></span><br><span class="line"><span class="function"><span class="keyword">int</span> <span class="title">main</span><span class="params">(<span class="keyword">int</span> argc, <span class="keyword">char</span> **argv)</span></span></span><br><span class="line"><span class="function"></span>&#123;</span><br><span class="line">	<span class="keyword">int</span> fd;</span><br><span class="line">	<span class="keyword">char</span> buf[<span class="number">1024</span>];</span><br><span class="line">	<span class="keyword">int</span> len;</span><br><span class="line">	</span><br><span class="line">	<span class="comment">/* 1. 判断参数 */</span></span><br><span class="line">	<span class="keyword">if</span> (argc &lt; <span class="number">2</span>) </span><br><span class="line">	&#123;</span><br><span class="line">		<span class="built_in">printf</span>(<span class="string">&quot;Usage: %s -w &lt;string&gt;\n&quot;</span>, argv[<span class="number">0</span>]);</span><br><span class="line">		<span class="built_in">printf</span>(<span class="string">&quot;       %s -r\n&quot;</span>, argv[<span class="number">0</span>]);</span><br><span class="line">		<span class="keyword">return</span> <span class="number">-1</span>;</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	<span class="comment">/* 2. 打开文件 */</span></span><br><span class="line">	fd = open(<span class="string">&quot;/dev/hello&quot;</span>, O_RDWR);</span><br><span class="line">	<span class="keyword">if</span> (fd == <span class="number">-1</span>)</span><br><span class="line">	&#123;</span><br><span class="line">		<span class="built_in">printf</span>(<span class="string">&quot;can not open file /dev/hello\n&quot;</span>);</span><br><span class="line">		<span class="keyword">return</span> <span class="number">-1</span>;</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	<span class="comment">/* 3. 写文件或读文件 */</span></span><br><span class="line">	<span class="keyword">if</span> ((<span class="number">0</span> == <span class="built_in">strcmp</span>(argv[<span class="number">1</span>], <span class="string">&quot;-w&quot;</span>)) &amp;&amp; (argc == <span class="number">3</span>))</span><br><span class="line">	&#123;</span><br><span class="line">		len = <span class="built_in">strlen</span>(argv[<span class="number">2</span>]) + <span class="number">1</span>;</span><br><span class="line">		len = len &lt; <span class="number">1024</span> ? len : <span class="number">1024</span>;</span><br><span class="line">		write(fd, argv[<span class="number">2</span>], len);</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="keyword">else</span></span><br><span class="line">	&#123;</span><br><span class="line">		len = read(fd, buf, <span class="number">1024</span>);		</span><br><span class="line">		buf[<span class="number">1023</span>] = <span class="string">&#x27;\0&#x27;</span>;</span><br><span class="line">		<span class="built_in">printf</span>(<span class="string">&quot;APP read : %s\n&quot;</span>, buf);</span><br><span class="line">	&#125;</span><br><span class="line">	</span><br><span class="line">	close(fd);</span><br><span class="line">	</span><br><span class="line">	<span class="keyword">return</span> <span class="number">0</span>;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"></span><br><span class="line"></span><br></pre></td></tr></table></figure>
+
+
+
+<h2 id="编写驱动程序的Makefile"><a href="#编写驱动程序的Makefile" class="headerlink" title="编写驱动程序的Makefile"></a>编写驱动程序的Makefile</h2><p>驱动程序中包含了很多头文件，这些头文件来自内核，不同的ARM板它的某些头文件可能不同。所以编译驱动程序时，需要指定板子所用的内核的源码路径。</p>
+<p>要编译哪个文件？这也需要指定，设置obj-m变量即可</p>
+<p>怎么把.c文件编译为驱动程序.ko？这要借助内核的顶层Makefile。</p>
+<p>本驱动程序的Makefile内容如下：</p>
+<figure class="highlight makefile"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br></pre></td><td class="code"><pre><span class="line"></span><br><span class="line"><span class="comment"># 1. 使用不同的开发板内核时, 一定要修改KERN_DIR</span></span><br><span class="line"><span class="comment"># 2. KERN_DIR中的内核要事先配置、编译, 为了能编译内核, 要先设置下列环境变量:</span></span><br><span class="line"><span class="comment"># 2.1 ARCH,          比如: export ARCH=arm64</span></span><br><span class="line"><span class="comment"># 2.2 CROSS_COMPILE, 比如: export CROSS_COMPILE=aarch64-linux-gnu-</span></span><br><span class="line"><span class="comment"># 2.3 PATH,          比如: export PATH=$PATH:/home/book/100ask_roc-rk3399-pc/ToolChain-6.3.1/gcc-linaro-6.3.1-2017.05-x86_64_aarch64-linux-gnu/bin </span></span><br><span class="line"><span class="comment"># 注意: 不同的开发板不同的编译器上述3个环境变量不一定相同,</span></span><br><span class="line"><span class="comment">#       请参考各开发板的高级用户使用手册</span></span><br><span class="line"></span><br><span class="line">KERN_DIR = /home/book/100ask_stm32mp157_pro-sdk/Linux-5.4</span><br><span class="line"></span><br><span class="line"><span class="section">all:</span></span><br><span class="line">	make -C <span class="variable">$(KERN_DIR)</span> M=`pwd` modules </span><br><span class="line">	<span class="variable">$(CROSS_COMPILE)</span>gcc -o hello_drv_test hello_drv_test.c </span><br><span class="line"></span><br><span class="line"><span class="section">clean:</span></span><br><span class="line">	make -C <span class="variable">$(KERN_DIR)</span> M=`pwd` modules clean</span><br><span class="line">	rm -rf modules.order</span><br><span class="line">	rm -f hello_drv_test</span><br><span class="line"></span><br><span class="line">obj-m	+= hello_drv.o</span><br><span class="line"></span><br></pre></td></tr></table></figure>
+
+
+
+
+
+<h2 id="上机实验"><a href="#上机实验" class="headerlink" title="上机实验"></a>上机实验</h2><p><strong>Ubuntu</strong></p>
+<p>make命令编译驱动程序和测试程序</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line">book@100ask:~/01_all_series_quickstart/05_嵌入式Linux驱动开发基础知识/source/01_hello_drv$ make</span><br><span class="line">make -C /home/book/100ask_stm32mp157_pro-sdk/Linux-5.4 M=`pwd` modules</span><br><span class="line">make[1]: Entering directory &#x27;/home/book/100ask_stm32mp157_pro-sdk/Linux-5.4&#x27;</span><br><span class="line">  CC [M]  /home/book/01_all_series_quickstart/05_嵌入式Linux驱动开发基础知识/source/01_hello_drv/hello_drv.o</span><br><span class="line">  Building modules, stage 2.</span><br><span class="line">  MODPOST 1 modules</span><br><span class="line">  CC [M]  /home/book/01_all_series_quickstart/05_嵌入式Linux驱动开发基础知识/source/01_hello_drv/hello_drv.mod.o</span><br><span class="line">  LD [M]  /home/book/01_all_series_quickstart/05_嵌入式Linux驱动开发基础知识/source/01_hello_drv/hello_drv.ko</span><br><span class="line">make[1]: Leaving directory &#x27;/home/book/100ask_stm32mp157_pro-sdk/Linux-5.4&#x27;</span><br><span class="line">arm-buildroot-linux-gnueabihf-gcc -o hello_drv_test hello_drv_test.c</span><br><span class="line"><span class="meta"></span></span><br><span class="line"><span class="meta">#</span><span class="bash">拷贝驱动</span></span><br><span class="line">book@100ask:~/01_all_series_quickstart/05_嵌入式Linux驱动开发基础知识/source/01_hello_drv$ cp hello_drv.ko hello_drv_test /home/book/nfs_rootfs/</span><br><span class="line"></span><br></pre></td></tr></table></figure>
+
+
+
+<p><strong>开发板</strong></p>
+<p>挂载NFS</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">busybox  mount -t nfs -o nolock,vers=3 192.168.5.11:/home/book/nfs_rootfs /mnt</span><br></pre></td></tr></table></figure>
+
+
+
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">#</span><span class="bash">安装驱动程序</span></span><br><span class="line">root@ATK-stm32mp1:/mnt# insmod hello_drv.ko</span><br><span class="line">[  752.208665] /home/book/01_all_series_quickstart/05_嵌入式Linux驱动开发基础知识/source/01_hello_drv/hello_drv.c hello_init line 70</span><br><span class="line">root@ATK-stm32mp1:/mnt# cat /proc/devices</span><br><span class="line">Character devices:</span><br><span class="line">  1 mem</span><br><span class="line">  2 pty</span><br><span class="line">  3 ttyp</span><br><span class="line">  4 /dev/vc/0</span><br><span class="line">  4 tty</span><br><span class="line">  5 /dev/tty</span><br><span class="line">  5 /dev/console</span><br><span class="line">  5 /dev/ptmx</span><br><span class="line">  5 ttyRPMSG</span><br><span class="line">  7 vcs</span><br><span class="line"> 10 misc</span><br><span class="line"> 13 input</span><br><span class="line"> 21 sg</span><br><span class="line"> 29 fb</span><br><span class="line"> 81 video4linux</span><br><span class="line"> 89 i2c</span><br><span class="line"> 90 mtd</span><br><span class="line">108 ppp</span><br><span class="line">116 alsa</span><br><span class="line">128 ptm</span><br><span class="line">136 pts</span><br><span class="line">153 spi</span><br><span class="line">166 ttyACM</span><br><span class="line">180 usb</span><br><span class="line">188 ttyUSB</span><br><span class="line">189 usb_device</span><br><span class="line">216 rfcomm</span><br><span class="line">226 drm</span><br><span class="line">240 hello</span><br><span class="line">241 media</span><br><span class="line">242 rpmb</span><br><span class="line">243 ttyGS</span><br><span class="line">244 ttyUSI</span><br><span class="line">245 ttySTM</span><br><span class="line">246 bsg</span><br><span class="line">247 watchdog</span><br><span class="line">248 tee</span><br><span class="line">249 iio</span><br><span class="line">250 ptp</span><br><span class="line">251 pps</span><br><span class="line">252 cec</span><br><span class="line">253 rtc</span><br><span class="line">254 gpiochip</span><br><span class="line">root@ATK-stm32mp1:/mnt# lsmod</span><br><span class="line">Module                  Size  Used by</span><br><span class="line">hello_drv              16384  0</span><br><span class="line">stm32_dcmi             32768  0</span><br><span class="line">videobuf2_dma_contig    20480  1 stm32_dcmi</span><br><span class="line">videobuf2_memops       16384  1 videobuf2_dma_contig</span><br><span class="line">videobuf2_v4l2         20480  1 stm32_dcmi</span><br><span class="line">ov5640                 28672  0</span><br><span class="line">videobuf2_common       40960  2 stm32_dcmi,videobuf2_v4l2</span><br><span class="line">v4l2_fwnode            20480  2 ov5640,stm32_dcmi</span><br><span class="line">videodev              172032  5 ov5640,v4l2_fwnode,videobuf2_common,stm32_dcmi,videobuf2_v4l2</span><br><span class="line">mc                     36864  5 ov5640,videobuf2_common,videodev,stm32_dcmi,videobuf2_v4l2</span><br><span class="line">stm32_cec              16384  0</span><br><span class="line">sch_fq_codel           20480  3</span><br><span class="line">ipv6                  442368  40</span><br><span class="line">nf_defrag_ipv6         20480  1 ipv6</span><br><span class="line">root@ATK-stm32mp1:/mnt# ls /dev/hello -l</span><br><span class="line">crw------- 1 root root 240, 0 Feb  7 16:03 /dev/hello</span><br><span class="line"></span><br></pre></td></tr></table></figure>
+
+
+
+
+
+<p><strong>测试程序运行：</strong></p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line">root@ATK-stm32mp1:/mnt# ./hello_drv_test</span><br><span class="line">Usage: ./hello_drv_test -w &lt;string&gt;</span><br><span class="line">       ./hello_drv_test -r</span><br><span class="line">root@ATK-stm32mp1:/mnt# ./hello_drv_test -w aaa</span><br><span class="line">[ 1120.583066] /home/book/01_all_series_quickstart/05_嵌入式Linux驱动开发基础知识/source/01_hello_drv/hello_drv.c hello_drv_open line 45</span><br><span class="line">[ 1120.594824] /home/book/01_all_series_quickstart/05_嵌入式Linux驱动开发基础知识/source/01_hello_drv/hello_drv.c hello_drv_write line 38</span><br><span class="line">[ 1120.610601] /home/book/01_all_series_quickstart/05_嵌入式Linux驱动开发基础知识/source/01_hello_drv/hello_drv.c hello_drv_close line 51</span><br><span class="line">root@ATK-stm32mp1:/mnt# ./hello_drv_test -r</span><br><span class="line">[ 1179.309364] /home/book/01_all_series_quickstart/05_嵌入式Linux驱动开发基础知识/source/01_hello_drv/hello_drv.c hello_drv_open line 45</span><br><span class="line">[ 1179.321087] /home/book/01_all_series_quickstart/05_嵌入式Linux驱动开发基础知识/source/01_hello_drv/hello_drv.c hello_drv_read line 30</span><br><span class="line">APP read[ 1179.334721] /home/book/01_all_series_quickstart/05_嵌入式Linux驱动开发基础知识/source/01_hello_drv/hello_drv.c hello_drv_close line 51</span><br><span class="line"> : aaa</span><br></pre></td></tr></table></figure>
+
+
+
+<p><strong>卸载驱动：</strong></p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br></pre></td><td class="code"><pre><span class="line">root@ATK-stm32mp1:/mnt# rmmod hello_drv</span><br><span class="line">[ 2866.055626] /home/book/01_all_series_quickstart/05_嵌入式Linux驱动开发基础知识/source/01_hello_drv/hello_drv.c hello_exit line 90</span><br><span class="line">root@ATK-stm32mp1:/mnt# lsmod</span><br><span class="line">Module                  Size  Used by</span><br><span class="line">stm32_dcmi             32768  0</span><br><span class="line">videobuf2_dma_contig    20480  1 stm32_dcmi</span><br><span class="line">videobuf2_memops       16384  1 videobuf2_dma_contig</span><br><span class="line">videobuf2_v4l2         20480  1 stm32_dcmi</span><br><span class="line">ov5640                 28672  0</span><br><span class="line">videobuf2_common       40960  2 stm32_dcmi,videobuf2_v4l2</span><br><span class="line">v4l2_fwnode            20480  2 ov5640,stm32_dcmi</span><br><span class="line">videodev              172032  5 ov5640,v4l2_fwnode,videobuf2_common,stm32_dcmi,videobuf2_v4l2</span><br><span class="line">mc                     36864  5 ov5640,videobuf2_common,videodev,stm32_dcmi,videobuf2_v4l2</span><br><span class="line">stm32_cec              16384  0</span><br><span class="line">sch_fq_codel           20480  3</span><br><span class="line">ipv6                  442368  40</span><br><span class="line">nf_defrag_ipv6         20480  1 ipv6</span><br></pre></td></tr></table></figure>
+
+
+
+
+    </div>
+
+    
+    
+    
+
+      <footer class="post-footer">
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2021/12/23/%E7%AE%97%E6%B3%95-%E9%93%BE%E8%A1%A8/" rel="prev" title="算法-链表">
+      <i class="fa fa-chevron-left"></i> 算法-链表
+    </a></div>
+      <div class="post-nav-item">
+    <a href="/2021/12/27/LED%E9%A9%B1%E5%8A%A8/" rel="next" title="LED驱动">
+      LED驱动 <i class="fa fa-chevron-right"></i>
+    </a></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+          </div>
+          
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-1"><a class="nav-link" href="#Hello%E9%A9%B1%E5%8A%A8%EF%BC%88%E4%B8%8D%E6%B6%89%E5%8F%8A%E7%A1%AC%E4%BB%B6%E6%93%8D%E4%BD%9C%EF%BC%89"><span class="nav-number">1.</span> <span class="nav-text">Hello驱动（不涉及硬件操作）</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E9%A9%B1%E5%8A%A8%E7%A8%8B%E5%BA%8F%E7%BC%96%E5%86%99%E6%AD%A5%E9%AA%A4%EF%BC%9A"><span class="nav-number">1.1.</span> <span class="nav-text">驱动程序编写步骤：</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E7%BC%96%E5%86%99%E9%A9%B1%E5%8A%A8%E7%A8%8B%E5%BA%8F%E7%9A%84Makefile"><span class="nav-number">1.2.</span> <span class="nav-text">编写驱动程序的Makefile</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%B8%8A%E6%9C%BA%E5%AE%9E%E9%AA%8C"><span class="nav-number">1.3.</span> <span class="nav-text">上机实验</span></a></li></ol></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">枫叶</p>
+  <div class="site-description" itemprop="description">选择有时候比努力更重要</div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">8</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">3</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">4</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+
+
+  <div class="links-of-blogroll motion-element">
+    <div class="links-of-blogroll-title"><i class="fa fa-link fa-fw"></i>
+      Links
+    </div>
+    <ul class="links-of-blogroll-list">
+        <li class="links-of-blogroll-item">
+          <a href="https://baidu.com/" title="https:&#x2F;&#x2F;baidu.com" rel="noopener" target="_blank">百度</a>
+        </li>
+        <li class="links-of-blogroll-item">
+          <a href="https://fishc.com.cn/" title="https:&#x2F;&#x2F;fishc.com.cn" rel="noopener" target="_blank">鱼C论坛</a>
+        </li>
+    </ul>
+  </div>
+
+      </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2021</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">枫叶</span>
+</div>
+  <div class="powered-by">由 <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.org/" class="theme-link" rel="noopener" target="_blank">NexT.Gemini</a> 强力驱动
+  </div>
+
+        
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/pisces.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+</body>
+</html>
